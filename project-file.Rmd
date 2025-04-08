@@ -1,0 +1,89 @@
+---
+title: "alc"
+author: "Pulkit Pincha"
+date: "2023-04-22"
+output: html_document
+---
+
+```{r Importing Packages}
+library(Ecdat)
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(ie2misc)
+library(car)
+library(Metrics)
+```
+
+```{r importing dataset}
+library(readxl)
+lifeexpectancy_verbose <- read_excel("C:/Users/stimp/OneDrive/Desktop/Flame/DATA/project/lifeexpectancy-verbose.xlsx", 
+    sheet = "lifeexpectancy")
+View(lifeexpectancy_verbose)
+```
+
+```{r mutating variables}
+lifeexpectancy_verbose = lifeexpectancy_verbose %>% mutate(WorldBankIncomeGroupDisplay_dummy = ifelse(WorldBankIncomeGroupDisplay == "Low_income",0, ifelse(WorldBankIncomeGroupDisplay == "Lower_middle_income",1,ifelse(WorldBankIncomeGroupDisplay == "Upper_middle_income",2,3))))
+
+lifeexpectancy_verbose = lifeexpectancy_verbose %>% mutate(SexDisplay_dummy = ifelse(SexDisplay == "Female",0,ifelse(SexDisplay == "Male",1,2)))
+
+lifeexpectancy_verbose = lifeexpectancy_verbose %>% mutate(ContinentDisplay_dummy = ifelse(ContinentDisplay == "Africa",0,ifelse(ContinentDisplay == "Antarctica",1,ifelse(ContinentDisplay == "Asia",2,ifelse(ContinentDisplay == "Europe",3,ifelse(ContinentDisplay == "North America",4,ifelse(ContinentDisplay == "Oceania",5,6)))))))
+```
+
+```{r models}
+#linear regression model
+model1 <- lm(Years ~ WorldBankIncomeGroupDisplay_dummy + SexDisplay_dummy + ContinentDisplay_dummy + total_litres_of_pure_alcohol + YearDisplay, data = lifeexpectancy_verbose)
+summary(model1)
+summary(model1)$coefficents
+vif(model1)
+prediction1 = predict(model1, lifeexpectancy_verbose)
+lm1_RMSE <- data.frame(RMSE = RMSE(prediction1, lifeexpectancy_verbose$Years))
+
+#regression tree model
+model2 <- rpart(Years ~ WorldBankIncomeGroupDisplay_dummy + SexDisplay_dummy + ContinentDisplay_dummy + total_litres_of_pure_alcohol + YearDisplay, data = lifeexpectancy_verbose, method = "anova", minsplit = 2)
+rpart.plot(model2)
+prediction2 = predict(model2, lifeexpectancy_verbose)
+rt1_RMSE <- data.frame(RMSE = RMSE(prediction2, lifeexpectancy_verbose$Years))
+rt1_MAPE <- mape(lifeexpectancy_verbose$Years, prediction2)
+```
+
+```{r split into train and test}
+set.seed(123)
+train_test_partitions <- createDataPartition(lifeexpectancy_verbose$Years, p = 0.8, list = FALSE)
+train  <- lifeexpectancy_verbose[train_test_partitions, ]
+test <- lifeexpectancy_verbose[-train_test_partitions, ]
+```
+
+```{r models w trainset}
+#linear regression model
+model3 = lm(Years ~ WorldBankIncomeGroupDisplay_dummy + SexDisplay_dummy + ContinentDisplay_dummy + total_litres_of_pure_alcohol + YearDisplay, data = train)
+summary(model3)
+summary(model3)$coefficients
+prediction3 = predict(model3, test)
+lm2_RMSE <- data.frame(RMSE = RMSE(prediction3, test$Years))
+par(mfrow=c(2,2))
+plot(model3)
+
+#regression tree model
+model4 <- rpart(Years ~ WorldBankIncomeGroupDisplay_dummy + SexDisplay_dummy + ContinentDisplay_dummy + total_litres_of_pure_alcohol + YearDisplay, data = train, method = "anova", minsplit = 2)
+rpart.plot(model4)
+prediction4 = predict(model4, test)
+rt2_RMSE <- data.frame(RMSE = RMSE(prediction4, test$Years))
+rt2_MAPE <- mape(test$Years, prediction4)
+``` 
+
+```{r output}
+print(lm1_RMSE)
+print(lm2_RMSE)
+print(rt1_RMSE)
+print(rt2_RMSE)
+print("Regression Tree Model 1")
+print("MAPE -")
+print(rt1_MAPE)
+print("Regression Tree Model 2")
+print("MAPE -")
+print(rt2_MAPE)
+```
